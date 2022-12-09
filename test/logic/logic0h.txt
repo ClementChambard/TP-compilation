@@ -1,0 +1,1 @@
+begin if not (1 < 0 and 1 < 0) then 1 else 0 end

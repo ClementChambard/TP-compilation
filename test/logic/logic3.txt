@@ -1,0 +1,8 @@
+x := 0;
+y := 1;
+z := 5;
+t := if z > y  then x + 3 else y + 2;
+t1 := if z < y or x < 12 then 1 else 0;
+t2 := if not y >= z and z > 4 or x = 23 then 1 else 0;
+begin if t1 * t2 <> 0 then 3 else 0 end
+
