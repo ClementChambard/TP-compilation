@@ -1,7 +1,6 @@
 open Ast
 open Lexing
 
-
 let rec print_expr e =
     match e with
     | Id(v) -> Printf.printf "%s" v
@@ -43,6 +42,68 @@ let print_ast prog =
     print_expr (snd prog);
     Printf.printf "\nend\n"
 
+let verif_cont prog =
+    let rec verif_expr exp env =
+        match exp with
+        | Id(v) -> if (List.exists (fun x -> x = v) env) then () else raise(VC_Error (Printf.sprintf "Variable %s does not exist" v))
+        | Cste(c) -> ()
+        | UMinus(e) -> verif_expr e env
+        | Plus(e1,e2) -> (verif_expr e1 env; verif_expr e2 env)
+        | Minus(e1,e2) -> (verif_expr e1 env; verif_expr e2 env)
+        | Times(e1,e2) -> (verif_expr e1 env; verif_expr e2 env)
+        | Div(e1,e2) -> (verif_expr e1 env; verif_expr e2 env)
+        | Ite(c,e1,e2) -> (verif_cond c env; verif_expr e1 env; verif_expr e2 env)
+    and verif_cond cond env =
+        match cond with
+        | COMP(e1, op, e2) -> (verif_expr e1 env; verif_expr e2 env)
+        | AND(c1, c2) -> (verif_cond c1 env; verif_cond c2 env)
+        | OR (c1, c2) -> (verif_cond c1 env; verif_cond c2 env)
+        | NOT(c) -> verif_cond c env
+    in
+    let verif_decl decl env =
+        if (List.exists (fun x -> x = (fst decl)) env) then raise(VC_Error (Printf.sprintf "Variable %s already exists" (fst decl))) else ();
+        verif_expr (snd decl) env;
+        (fst decl) :: env
+    in
+    let rec verif_decl_list l env =
+        match l with
+        | V(s, r) -> verif_decl_list r (verif_decl s env)
+        | N -> env
+    in verif_expr (snd prog) (verif_decl_list (fst prog) [])
+
+        (*match Map.find env (fst decl) with
+          | None -> ()
+          | Some x -> throw VC_Error((Printf.sprintf "Variable %s already exists" (fst decl))) *)
+let eval prog =
+    let rec eval_expr exp env =
+        match exp with
+        | Id(v) -> List.assoc v env
+        | Cste(c) -> c
+        | UMinus(e) -> -(eval_expr e env)
+        | Plus(e1,e2) -> (eval_expr e1 env) + (eval_expr e2 env)
+        | Minus(e1,e2) -> (eval_expr e1 env) - (eval_expr e2 env)
+        | Times(e1,e2) -> (eval_expr e1 env) * (eval_expr e2 env)
+        | Div(e1,e2) -> (let div = (eval_expr e2 env) in if div = 0 then raise (RUN_Error "division par 0") else (eval_expr e1 env) / div)
+        | Ite(c,e1,e2) -> if (eval_cond c env) then (eval_expr e1 env) else (eval_expr e2 env)
+    and eval_cond cond env =
+        match cond with
+        | AND(c1, c2) -> (eval_cond c1 env) && (eval_cond c2 env)
+        | OR (c1, c2) -> (eval_cond c1 env) || (eval_cond c2 env)
+        | NOT(c) -> not (eval_cond c env)
+        | COMP(e1, op, e2) -> match op with
+        | Eq -> (eval_expr e1 env) = (eval_expr e2 env)
+        | Neq -> (eval_expr e1 env) <> (eval_expr e2 env)
+        | Lt -> (eval_expr e1 env) < (eval_expr e2 env)
+        | Le -> (eval_expr e1 env) <= (eval_expr e2 env)
+        | Gt -> (eval_expr e1 env) > (eval_expr e2 env)
+        | Ge -> (eval_expr e1 env) >= (eval_expr e2 env)
+    in
+    let eval_decl decl env = ((fst decl),(eval_expr (snd decl) env)) :: env in
+    let rec eval_decls l env =
+        match l with
+        | V(s, r) -> eval_decls r (eval_decl s env)
+        | N -> env
+    in eval_expr (snd prog) (eval_decls (fst prog) [])
 
 (* lexbuf: correspond au buffer d'entrée associé au programme qu'on traite
  * file_in: descripteur de fichier pour ce programme
@@ -66,7 +127,9 @@ let parse_with_error lexbuf file_in chan =
     let ast = TpParse.prog TpLex.token lexbuf in
     print_string "Fin de l'analyse syntaxique";
     print_newline ();
-    print_ast ast
+    print_ast ast;
+    verif_cont ast;
+    Printf.printf "%d\n" (eval ast)
   with (* traite exception général ... *)
     TpParse.Error -> (* levée par l'analyseur syntaxique *)
     Printf.fprintf stderr "Syntax error at position %a\n" print_position lexbuf;
