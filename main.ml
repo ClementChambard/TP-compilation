@@ -71,9 +71,6 @@ let verif_cont prog =
         | N -> env
     in verif_expr (snd prog) (verif_decl_list (fst prog) [])
 
-        (*match Map.find env (fst decl) with
-          | None -> ()
-          | Some x -> throw VC_Error((Printf.sprintf "Variable %s already exists" (fst decl))) *)
 let eval prog =
     let rec eval_expr exp env =
         match exp with
